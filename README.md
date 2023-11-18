@@ -20,10 +20,10 @@ That's more than nothing, however users can ask such a wide variety of questions
 1. With a synthetic data generation I enriched the knowledge base. I coined this QBRAG (QnA Boosted RAG) because I'm using the same QnA data I already generated and curated for potential fine tuning purposes. The same dataset can be used to enrich the vector indexed knowledge as well.
 2. The highlight of my submission is RAG Fusion ([see article](https://towardsdatascience.com/forget-rag-the-future-is-rag-fusion-1147298d8ad1)).
 3. I utilize [Weaviate](https://weaviate.io/) for vector storage, embedding, matching and retrieval. I use [Cohere](https://cohere.com/) for multiple language models: fine tuned chat model and also `co.chat` with a web connector advanced feature in different stages of the chain.
-4. I also use LangChain to construct some stages of the chain.
+4. I also use [LangChain](https://www.langchain.com/) to construct some stages of the chain.
 5. The front-end is powered by and hosted on Streamlit, I highly customized the view which also features linked references.
 6. After the fusion and re-ranking I provide the user with both results from a more traditional RAG grounded `co.chat` call and also a web-connector powered other call (that is also augmented to provide guidance) to show both information so the user can get the best of both worlds.
-7. Since I have to control several stages of the chain for the fusion, I was not able to use such high level LangChain constructs as `ConversationalRetrievalChain` or `RetrievalQA`, so `co.chat`'s ability to handle the conversation for me (via `conversation_id`) made my job much easier than I'd have to work for history / memory functionality and other building blocks.
+7. Since I have to control several stages of the chain for the fusion, I was not able to use such high level [LangChain](https://www.langchain.com/) constructs as `ConversationalRetrievalChain` or `RetrievalQA`, so `co.chat`'s ability to handle the conversation for me (via `conversation_id`) made my job much easier than I'd have to work for history / memory functionality and other building blocks.
 
 ## RAG Fusion:
 1. Since users might ask questions which are not present in the QnA in the particular form but still covered by the knowledge, the application first generates variations of the user's query with the help of a fine tuned Cohere model. The hope is that some of these variations may match closer to some QnA or help data chunks.
