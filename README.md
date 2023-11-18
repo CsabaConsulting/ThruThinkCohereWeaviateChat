@@ -21,7 +21,7 @@ That's more than nothing, however users can ask such a wide variety of questions
 2. The highlight of my submission is RAG Fusion ([see article](https://towardsdatascience.com/forget-rag-the-future-is-rag-fusion-1147298d8ad1)).
 3. I utilize [Weaviate](https://weaviate.io/) for vector storage, embedding, matching and retrieval. I use [Cohere](https://cohere.com/) for multiple language models: fine tuned chat model and also `co.chat` with a web connector advanced feature in different stages of the chain.
 4. I also use [LangChain](https://www.langchain.com/) to construct some stages of the chain.
-5. The front-end is powered by and hosted on Streamlit, I highly customized the view which also features linked references.
+5. The front-end is powered by and hosted on [Streamlit](https://streamlit.io/), I highly customized the view which also features linked references.
 6. After the fusion and re-ranking I provide the user with both results from a more traditional RAG grounded `co.chat` call and also a web-connector powered other call (that is also augmented to provide guidance) to show both information so the user can get the best of both worlds.
 7. Since I have to control several stages of the chain for the fusion, I was not able to use such high level [LangChain](https://www.langchain.com/) constructs as `ConversationalRetrievalChain` or `RetrievalQA`, so `co.chat`'s ability to handle the conversation for me (via `conversation_id`) made my job much easier than I'd have to work for history / memory functionality and other building blocks.
 
@@ -39,8 +39,8 @@ That's more than nothing, however users can ask such a wide variety of questions
 Kindly look at the development and experimentation IPython notebooks and scripts in the https://github.com/CsabaConsulting/Cohere repository. These were used to establish the Weaviate schema for ingestion / indexing / retrieval, and also testing retrieval and building up the parts for the RAG Fusion.
 
 ## Future plans:
-1. Decrease runtime by running the variation document retrievals in parallel, this is a Streamlit specific tech challenge with asyncio / await.
-2. Decrease runtime by running the final two co.chat RAG calls in parallel, this is a Streamlit specific tech challenge with asyncio / await.
-3. Make the citation linking nicer.
+1. Decrease runtime by running the variation document retrievals in parallel, this is a [Streamlit](https://streamlit.io/) specific tech challenge with asyncio / await.
+2. Decrease runtime by running the final two co.chat RAG calls in parallel, this is a [Streamlit](https://streamlit.io/) specific tech challenge with asyncio / await.
+3. Make the citation linking nicer and other UI enhancements.
 4. Measure how much the RAG Fusion (if at all) improves answer quality. Measure the trade-off factoring in extra latency and potential token usage increase which also means cost increase.
 5. Integrate the agent into ThruThink which uses ASP.NET MVC / C# / Azure technology stack, but not open source. In that final deployment I'll be able to open up referred help topics using the meta-data I get back as part of the query results document metadata.
