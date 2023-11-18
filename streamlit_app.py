@@ -170,7 +170,7 @@ def generate_response_with_rag_fusion(query):
         )
         for t in range(defaults["max_retries"]):
             query_variations = variation_chain.invoke(dict(query=query, variation_count=variation_count))
-            print(f"{t}.: {query_variations}")
+            # print(f"{t}.: {query_variations}")
             if query_variations.count(".") >= variation_count and query_variations.count("\n") >= variation_count - 1:
                 break
 
