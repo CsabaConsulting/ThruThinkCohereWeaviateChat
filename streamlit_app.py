@@ -263,6 +263,7 @@ Answer:
             prompt_truncation="auto",
             temperature=temperature,
             citation_quality="accurate",
+            conversation_id=conversation_id,
             documents=documents,
             preamble_override=chat_system_prompt,
             message=query,
