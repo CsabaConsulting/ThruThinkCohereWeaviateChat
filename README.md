@@ -44,3 +44,4 @@ Kindly look at the development and experimentation IPython notebooks and scripts
 3. Make the citation linking nicer and other UI enhancements.
 4. Measure how much the RAG Fusion (if at all) improves answer quality. Measure the trade-off factoring in extra latency and potential token usage increase which also means cost increase.
 5. Integrate the agent into ThruThink which uses ASP.NET MVC / C# / Azure technology stack, but not open source. In that final deployment I'll be able to open up referred help topics using the meta-data I get back as part of the query results document metadata.
+6. Add filter against harmful content, for example using [Google PaLM2's safety attributes](https://cloud.google.com/vertex-ai/docs/generative-ai/learn/responsible-ai#attribute-descriptions).
