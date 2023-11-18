@@ -1,0 +1,5 @@
+cohere
+langchain
+streamlit
+streamlit_chat
+weaviate
