@@ -33,8 +33,8 @@ That's more than nothing, however users can ask such a wide variety of questions
 
 ## Other achievements:
 * I added the capability to the https://github.com/nestordemeure/question_extractor open source project to continue a long running interrupted QnA generation session (it can take many hours with default rate limits on both OpenAI or AnyScale). See my open repository https://github.com/CsabaConsulting/question_extractor
-2. I developed a script which can convert the standard format fine tuning `jsonl` into a set of markdown files (QnA grouped by help topics) for Weaviate indexing. The script breaks apart the `questions.jsonl` into the files based on which file the questions originally sourced from. This is needed for the QBRAG synthetic data indexing. For the conversion see the https://github.com/CsabaConsulting/question_extractor/blob/main/augment_prep.py script.
-3. I added capability for my script to produce a fine tuning file for the Cohere LLM model (see https://github.com/CsabaConsulting/question_extractor/blob/main/fine_tune_prep.py).
+* I developed a script which can convert the standard format fine tuning `jsonl` into a set of markdown files (QnA grouped by help topics) for Weaviate indexing. The script breaks apart the `questions.jsonl` into the files based on which file the questions originally sourced from. This is needed for the QBRAG synthetic data indexing. For the conversion see the https://github.com/CsabaConsulting/question_extractor/blob/main/augment_prep.py script.
+* I added capability for my script to produce a fine tuning file for the Cohere LLM model (see https://github.com/CsabaConsulting/question_extractor/blob/main/fine_tune_prep.py).
 
 Kindly look at the development and experimentation IPython notebooks and scripts in the https://github.com/CsabaConsulting/Cohere repository. These were used to establish the Weaviate schema for ingestion / indexing / retrieval, and also testing retrieval and building up the parts for the RAG Fusion.
 
