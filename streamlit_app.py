@@ -177,7 +177,7 @@ def generate_response_with_rag_fusion(query):
         queries = [query]
         if query_variations.count(".") >= variation_count:
             for query_variation in query_variations.split("\n")[:variation_count]:
-                dot_index = query_variation.index(".")
+                dot_index = query_variation.index(".") if "." in query_variation else -1
                 q = query_variation[dot_index + 1:].strip()
                 if q not in queries:
                     queries.append(q)
