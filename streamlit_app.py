@@ -29,17 +29,17 @@ st.image("https://raw.githubusercontent.com/TTGithub/TTMarketingSite/master/img/
 weaviate_api_key = os.getenv("weaviate_api_key")
 if not weaviate_api_key:
     weaviate_api_key = st.secrets["weaviate_api_key"]
-    os.environ["weaviate_api_key"] == weaviate_api_key
+    os.environ["weaviate_api_key"] = weaviate_api_key
 
 weaviate_url = os.getenv("weaviate_url")
 if not weaviate_url:
     weaviate_url = st.secrets["weaviate_url"]
-    os.environ["weaviate_url"] == weaviate_url
+    os.environ["weaviate_url"] = weaviate_url
 
 cohere_api_key = os.getenv("COHERE_API_KEY")
 if not cohere_api_key:
     cohere_api_key = st.secrets["cohere_api_key"]
-    os.environ["COHERE_API_KEY"] == cohere_api_key
+    os.environ["COHERE_API_KEY"] = cohere_api_key
 
 # Initialise session state variables
 if "variation_count" not in st.session_state:
