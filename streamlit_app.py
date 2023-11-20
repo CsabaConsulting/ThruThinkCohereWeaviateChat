@@ -4,6 +4,7 @@ import streamlit as st
 import uuid
 import weaviate
 
+from cohere.client import Chat
 from config import defaults, boundaries
 from langchain.embeddings import CohereEmbeddings
 from langchain.llms import Cohere
@@ -12,6 +13,7 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+from langchain.schema.document import Document
 from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
 from operator import itemgetter
@@ -148,7 +150,7 @@ co = cohere.Client(cohere_api_key)
 
 # RAG Fusion logics
 # Step 1: Generate query variations
-def generate_variations(query):
+def generate_variations(query: str) -> list[str]:
     query_variations = []
     # Step 1: Generate query variations:
     with st.spinner("Generating variations..."):
@@ -184,7 +186,7 @@ Do not include any explanations, do not repeat the queries, and do not answer th
     return query_variations
 
 
-def extract_query_variations(query, query_variations):
+def extract_query_variations(query: str, query_variations: list[str]) -> list[str]:
     queries = [query]
     if query_variations.count(".") >= variation_count:
         for query_variation in query_variations.split("\n")[:variation_count]:
@@ -197,7 +199,7 @@ def extract_query_variations(query, query_variations):
 
 
 # Step 2: Retrieve documents for each query variation
-def retrieve_documents_for_query_variations(queries):
+def retrieve_documents_for_query_variations(queries: list[str]) -> list[list[Document]]:
     document_sets = []
     with st.spinner("Retrieving for variations and reranking..."):
         for q in queries:
@@ -207,7 +209,7 @@ def retrieve_documents_for_query_variations(queries):
 
 
 # Step 3: Rerank the document sets with reciprocal rank fusion
-def rerank_and_fuse_documents(document_sets):
+def rerank_and_fuse_documents(document_sets: list[list[Document]]) -> list[tuple[Document, float]]:
     fused_scores = dict()
     doc_map = dict()
     for doc_set in document_sets:
@@ -230,7 +232,7 @@ def rerank_and_fuse_documents(document_sets):
 
 # Step 4: Prepare and executing final RAG calls
 # (a document based and a web connector based - also augmented)
-def final_rag_operations(query, reranked_results):
+def final_rag_operations(query: str, reranked_results: list[tuple[Document, float]]) -> tuple[Chat, Chat]:
     with st.spinner("Executing twin queries..."):
         context = ""
         documents = []
@@ -288,7 +290,7 @@ Answer:
     return tt_response, web_response
 
 
-def generate_response_with_rag_fusion(query):
+def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
     # Step 1: Generate query variations
     query_variations = generate_variations(query)
     queries = extract_query_variations(query, query_variations)
@@ -300,11 +302,11 @@ def generate_response_with_rag_fusion(query):
     return final_rag_operations(query, reranked_results)
 
 
-def insert_substring(source_str, insert_str, pos):
+def insert_substring(source_str: str, insert_str: str, pos: int) -> str:
     return source_str[:pos] + insert_str + source_str[pos:]
 
 
-def mark_citations(kind, index, response):
+def mark_citations(kind: str, index: int, response) -> str:
     doc_map = dict()
     for idx, doc in enumerate(response.documents or []):
         if doc["id"] not in doc_map:
