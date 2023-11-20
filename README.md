@@ -26,10 +26,10 @@ That's more than nothing, however users can ask such a wide variety of questions
 7. Since I have to control several stages of the chain for the fusion, I was not able to use such high level [LangChain](https://www.langchain.com/) constructs as `ConversationalRetrievalChain` or `RetrievalQA`, so `co.chat`'s ability to handle the conversation for me (via `conversation_id`) made my job much easier than I'd have to work for history / memory functionality and other building blocks.
 
 ## RAG Fusion:
-1. Since users might ask questions which are not present in the QnA in the particular form but still covered by the knowledge, the application first generates variations of the user's query with the help of a fine tuned Cohere model. The hope is that some of these variations may match closer to some QnA or help data chunks.
-2. Then document retrieval happens for all of the query variations.
+1. Since users might ask questions which don't match well into the QnA questions in its particular form, but it is still covered by the knowledge base, the application first generates variations of the user's query with the help of a fine tuned Cohere model. The hope is that some of these variations may match closer to some QnA or help data chunks.
+2. The document retrieval then happens for all of the query variations.
 3. There's a reciprocal rank fusion which concludes a fused list of documents across all the variations.
-4. We'll take the top k of those documents and perform final two RAG calls which supply the displayed data.
+4. We'll take the top k of those documents and perform final two RAG calls which supply the displayed data. Both RAG calls use the cutting edge co.chat, one of the calls is document based, and the other is a web connector based (but still document augmentation helped for better result).
 
 ## Other achievements:
 * I added the capability to the https://github.com/nestordemeure/question_extractor open source project to continue a long running interrupted QnA generation session (it can take many hours with default rate limits on both OpenAI or AnyScale). See my open repository https://github.com/CsabaConsulting/question_extractor
