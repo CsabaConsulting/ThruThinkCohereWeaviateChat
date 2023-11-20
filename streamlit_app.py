@@ -17,6 +17,7 @@ from langchain.vectorstores import Weaviate
 from operator import itemgetter
 from streamlit_chat import message
 
+
 title = "ThruThink Support"
 st.set_page_config(
     page_title=title,
@@ -24,6 +25,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 st.image("https://raw.githubusercontent.com/TTGithub/TTMarketingSite/master/img/logo2_smaller.png", width=300)
+
 
 # Set API keys
 weaviate_api_key = os.getenv("weaviate_api_key")
@@ -40,6 +42,7 @@ cohere_api_key = os.getenv("COHERE_API_KEY")
 if not cohere_api_key:
     cohere_api_key = st.secrets["cohere_api_key"]
     os.environ["COHERE_API_KEY"] = cohere_api_key
+
 
 # Initialise session state variables
 if "variation_count" not in st.session_state:
@@ -93,6 +96,7 @@ if "web_documents" not in st.session_state:
 if "past" not in st.session_state:
     st.session_state["past"] = []
 
+
 # Sidebar
 variation_count = st.sidebar.slider(
     min_value=boundaries["variation_count_min"],
@@ -141,12 +145,15 @@ vectorstore._query_attrs = ["text", "title", "category", "slug", "_additional {d
 vectorstore.embedding = CohereEmbeddings(model="embed-english-v2.0", cohere_api_key=cohere_api_key)
 co = cohere.Client(cohere_api_key)
 
+
 # RAG Fusion logics
-def generate_response_with_rag_fusion(query):
+# Step 1: Generate query variations
+def generate_variations(query):
+    query_variations = []
     # Step 1: Generate query variations:
     with st.spinner("Generating variations..."):
         variation_system_prompt = """You are a helpful assistant that generates multiple search queries based on a single input query.
-    Do not include any explanations, do not repeat the queries, and do not answer the queries, simply just generate the alternative query variations."""
+Do not include any explanations, do not repeat the queries, and do not answer the queries, simply just generate the alternative query variations."""
         variation_user_command_prompt_template = "The single input query: {query}"
         # variation_user_example_prompt_template = "Example output:"
         # for i in range(variation_count):
@@ -174,33 +181,39 @@ def generate_response_with_rag_fusion(query):
             if query_variations.count(".") >= variation_count and query_variations.count("\n") >= variation_count - 1:
                 break
 
-        queries = [query]
-        if query_variations.count(".") >= variation_count:
-            for query_variation in query_variations.split("\n")[:variation_count]:
-                dot_index = query_variation.index(".") if "." in query_variation else -1
-                q = query_variation[dot_index + 1:].strip()
-                if q not in queries:
-                    queries.append(q)
+    return query_variations
 
-    # Step 2: Retrieve documents for each query variation
+
+def extract_query_variations(query, query_variations):
+    queries = [query]
+    if query_variations.count(".") >= variation_count:
+        for query_variation in query_variations.split("\n")[:variation_count]:
+            dot_index = query_variation.index(".") if "." in query_variation else -1
+            q = query_variation[dot_index + 1:].strip()
+            if q not in queries:
+                queries.append(q)
+
+    return queries
+
+
+# Step 2: Retrieve documents for each query variation
+def retrieve_documents_for_query_variations(queries):
+    document_sets = []
     with st.spinner("Retrieving for variations and reranking..."):
-        doc_sets = []
         for q in queries:
-            doc_sets.append(vectorstore.similarity_search_by_text(q, k=document_k))
+            document_sets.append(vectorstore.similarity_search_by_text(q, k=document_k))
 
-        doc_hash = dict()
-        for doc_set in doc_sets:
-            for rank, doc in enumerate(doc_set):
-                title = doc.metadata["title"]
-                doc_hash[title] = True
+    return document_sets
 
-    # Step 3: Rerank the document sets with reciprocal rank fusion
+
+# Step 3: Rerank the document sets with reciprocal rank fusion
+def rerank_and_fuse_documents(document_sets):
     fused_scores = dict()
     doc_map = dict()
-    for doc_set in doc_sets:
+    for doc_set in document_sets:
         for rank, doc in enumerate(doc_set):
             title = doc.metadata["title"]
-            if not title in doc_map:
+            if title not in doc_map:
                 doc_map[title] = doc
 
             if title not in fused_scores:
@@ -208,12 +221,16 @@ def generate_response_with_rag_fusion(query):
 
             fused_scores[title] += 1 / (rank + rerank_k)
 
-    reranked_results = [
+    # reranked documents
+    return [
         (doc_map[title], score)
         for title, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
     ]
 
-    # Step 4: Prepare and executing final RAG calls (a grounded and a web)
+
+# Step 4: Prepare and executing final RAG calls
+# (a document based and a web connector based - also augmented)
+def final_rag_operations(query, reranked_results):
     with st.spinner("Executing twin queries..."):
         context = ""
         documents = []
@@ -246,7 +263,6 @@ Contexts: {context}
 Question: {query}
 Answer:
 """
-
         web_response = co.chat(
             model=cohere_fusion_model,
             prompt_truncation="auto",
@@ -270,6 +286,18 @@ Answer:
         )
 
     return tt_response, web_response
+
+
+def generate_response_with_rag_fusion(query):
+    # Step 1: Generate query variations
+    query_variations = generate_variations(query)
+    queries = extract_query_variations(query, query_variations)
+    # Step 2: Retrieve documents for each query variation
+    document_sets = retrieve_documents_for_query_variations(queries)
+    # Step 3: Rerank the document sets with reciprocal rank fusion
+    reranked_results = rerank_and_fuse_documents(document_sets)
+    # Step 4: Prepare and executing final RAG calls (a grounded and a web)
+    return final_rag_operations(query, reranked_results)
 
 
 def insert_substring(source_str, insert_str, pos):
