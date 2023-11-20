@@ -9,15 +9,14 @@ from config import defaults, boundaries
 from helper import mark_citations
 from langchain.embeddings import CohereEmbeddings
 from langchain.llms import Cohere
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
-from langchain.schema.document import Document
-from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
-from operator import itemgetter
+from rag_fusion import (
+  extract_query_variations,
+  final_rag_operations,
+  generate_variations,
+  rerank_and_fuse_documents,
+  retrieve_documents_for_query_variations,
+)
 from streamlit_chat import message
 
 
@@ -149,158 +148,32 @@ vectorstore.embedding = CohereEmbeddings(model="embed-english-v2.0", cohere_api_
 co = cohere.Client(cohere_api_key)
 
 
-# RAG Fusion logics
-# Step 1: Generate query variations
-def generate_variations(query: str) -> list[str]:
-    query_variations = []
-    # Step 1: Generate query variations:
+def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
+    # Step 1: Generate query variations
     with st.spinner("Generating variations..."):
-        variation_system_prompt = """You are a helpful assistant that generates multiple search queries based on a single input query.
-Do not include any explanations, do not repeat the queries, and do not answer the queries, simply just generate the alternative query variations."""
-        variation_user_command_prompt_template = "The single input query: {query}"
-        # variation_user_example_prompt_template = "Example output:"
-        # for i in range(variation_count):
-        #     variation_user_example_prompt_template += f"{i}. Query variation {i}?\n"
+        query_variations = generate_variations(query, variation_count, llm)
+        queries = extract_query_variations(query, query_variations, variation_count)
 
-        variation_user_output_prompt_template = "Query variations:"
-        variation_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(variation_system_prompt),
-            HumanMessagePromptTemplate.from_template(variation_user_command_prompt_template),
-            # HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template),
-            HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template)
-        ])
-        variation_chain = (
-            {
-                "query": itemgetter("query"),
-                "variation_count": itemgetter("variation_count")
-            }
-            | variation_prompt
-            | llm
-            | StrOutputParser()
-        )
-        for t in range(defaults["max_retries"]):
-            query_variations = variation_chain.invoke(dict(query=query, variation_count=variation_count))
-            # print(f"{t}.: {query_variations}")
-            if query_variations.count(".") >= variation_count and query_variations.count("\n") >= variation_count - 1:
-                break
-
-    return query_variations
-
-
-def extract_query_variations(query: str, query_variations: list[str]) -> list[str]:
-    queries = [query]
-    if query_variations.count(".") >= variation_count:
-        for query_variation in query_variations.split("\n")[:variation_count]:
-            dot_index = query_variation.index(".") if "." in query_variation else -1
-            q = query_variation[dot_index + 1:].strip()
-            if q not in queries:
-                queries.append(q)
-
-    return queries
-
-
-# Step 2: Retrieve documents for each query variation
-def retrieve_documents_for_query_variations(queries: list[str]) -> list[list[Document]]:
-    document_sets = []
+    # Step 2: Retrieve documents for each query variation
     with st.spinner("Retrieving for variations and reranking..."):
-        for q in queries:
-            document_sets.append(vectorstore.similarity_search_by_text(q, k=document_k))
+        document_sets = retrieve_documents_for_query_variations(queries, vectorstore, document_k)
 
-    return document_sets
+        # Step 3: Rerank the document sets with reciprocal rank fusion
+        reranked_results = rerank_and_fuse_documents(document_sets, rerank_k)
 
-
-# Step 3: Rerank the document sets with reciprocal rank fusion
-def rerank_and_fuse_documents(document_sets: list[list[Document]]) -> list[tuple[Document, float]]:
-    fused_scores = dict()
-    doc_map = dict()
-    for doc_set in document_sets:
-        for rank, doc in enumerate(doc_set):
-            title = doc.metadata["title"]
-            if title not in doc_map:
-                doc_map[title] = doc
-
-            if title not in fused_scores:
-                fused_scores[title] = 0
-
-            fused_scores[title] += 1 / (rank + rerank_k)
-
-    # reranked documents
-    return [
-        (doc_map[title], score)
-        for title, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-    ]
-
-
-# Step 4: Prepare and executing final RAG calls
-# (a document based and a web connector based - also augmented)
-def final_rag_operations(query: str, reranked_results: list[tuple[Document, float]]) -> tuple[Chat, Chat]:
+    # Step 4: Prepare and executing final RAG calls (a grounded and a web)
     with st.spinner("Executing twin queries..."):
-        context = ""
-        documents = []
-        for index, rrr in enumerate(reranked_results[:top_k_augment_doc]):
-            if context:
-                context += "\n"
-
-            context_content = rrr[0].page_content  # .replace("\n", " ")
-            context += f"{index + 1}. context: `{context_content}`"
-            documents.append(dict(
-                id=rrr[0].metadata["slug"],
-                title=rrr[0].metadata["title"],
-                category=rrr[0].metadata["category"],
-                snippet=rrr[0].page_content,
-            ))
-
-        # Step 5: Final RAG calls
-        chat_system_prompt = """You are an assistant specialized in ThruThink budgeting analysis and projection web application usage.
-You are also knowledgeable in a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
-While you strive to provide accurate information and assistance, please keep in mind that you are not a licensed investment advisor, financial advisor, or tax advisor.
-Therefore, you cannot provide personalized investment advice, financial planning, or tax guidance.
-You are here to assist with ThruThink-related inquiries, or offer general information, answer questions to the best of your knowledge.
-When provided, factor in any pieces of retrieved context to answer the question. Also factor in any
-If you don't know the answer, just say that "I don't know", don't try to make up an answer."""
-
-        rag_query = f"""Use the following pieces of retrieved context to answer the question.
----
-Contexts: {context}
----
-Question: {query}
-Answer:
-"""
-        web_response = co.chat(
-            model=cohere_fusion_model,
-            prompt_truncation="auto",
-            temperature=temperature,
-            connectors=[{"id": "web-search"}],
-            citation_quality="accurate",
-            conversation_id=conversation_id,
-            preamble_override=chat_system_prompt,
-            message=rag_query,
-        )
-
-        tt_response = co.chat(
-            model=cohere_fusion_model,
-            prompt_truncation="auto",
-            temperature=temperature,
-            citation_quality="accurate",
-            conversation_id=conversation_id,
-            documents=documents,
-            preamble_override=chat_system_prompt,
-            message=query,
+        tt_response, web_response = final_rag_operations(
+            query,
+            reranked_results,
+            top_k_augment_doc,
+            cohere_fusion_model,
+            temperature,
+            conversation_id,
+            co
         )
 
     return tt_response, web_response
-
-
-def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
-    # Step 1: Generate query variations
-    query_variations = generate_variations(query)
-    queries = extract_query_variations(query, query_variations)
-    # Step 2: Retrieve documents for each query variation
-    document_sets = retrieve_documents_for_query_variations(queries)
-    # Step 3: Rerank the document sets with reciprocal rank fusion
-    reranked_results = rerank_and_fuse_documents(document_sets)
-    # Step 4: Prepare and executing final RAG calls (a grounded and a web)
-    return final_rag_operations(query, reranked_results)
 
 
 clear_button = st.sidebar.button("Clear Conversation", key="clear")
