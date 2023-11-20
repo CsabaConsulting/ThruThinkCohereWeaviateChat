@@ -32,6 +32,8 @@ That's more than nothing, however users can ask such a wide variety of questions
 3. There's a reciprocal rank fusion which concludes a fused list of documents across all the variations.
 4. We'll take the top k of those documents and perform final two RAG calls which supply the displayed data. Both RAG calls use the cutting edge co.chat, one of the calls is document based, and the other is a web connector based (but still document augmentation helped for better result).
 
+Note that the application and all the help documents are English. Therefore we used the `embed-english-v2.0` with `cosine` similarity. Knowing we need to perfrom only in English domain we can expect possibly slightly better performance. We need to pay attention to the similarity (multi lingual embedding uses dot product). Also refer to https://github.com/CsabaConsulting/Cohere/blob/main/WeaviateInit.ipynb.
+
 ## Other achievements:
 * I added the capability to the https://github.com/nestordemeure/question_extractor open source project to continue a long running interrupted QnA generation session (it can take many hours with default rate limits on both OpenAI or AnyScale). See my open repository https://github.com/CsabaConsulting/question_extractor
 * I developed a script which can convert the standard format fine tuning `jsonl` into a set of markdown files (QnA grouped by help topics) for Weaviate indexing. The script breaks apart the `questions.jsonl` into the files based on which file the questions originally sourced from. This is needed for the QBRAG synthetic data indexing. For the conversion see the https://github.com/CsabaConsulting/question_extractor/blob/main/augment_prep.py script.
