@@ -1,5 +1,7 @@
 # ThruThink® Support Chat Agent utilizing RAG Fusion, powered by [Cohere](https://cohere.com/) & [Weaviate](https://weaviate.io/)
 
+[5 minute Demo Pitch](https://youtu.be/SzJB-5rUmDg?t=227)
+
 The main business goal is to develop a support chat agent for the investment projection web application [ThruThink®](https://thruthink.com).
 * ThruThink® is a business budgeting on-line app to create professional budgets and forecasts
 * A product of literally decades of experience and careful thought, and thousands of calculations
