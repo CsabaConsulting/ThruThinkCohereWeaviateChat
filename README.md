@@ -2,6 +2,7 @@
 
 * [5 minute Demo Pitch (at the point where the Stremlit app is shown)](https://youtu.be/SzJB-5rUmDg?t=227)
 * [Slide deck PDF (pitched before the Streamlit app)](https://github.com/CsabaConsulting/Cohere/blob/main/presentations/CohereWeaviateSubmission.pdf) ([pptx](https://github.com/CsabaConsulting/Cohere/blob/main/presentations/CohereWeaviateSubmission.pptx))
+* [The project's hackathon page on lablab.ai](https://lablab.ai/event/cohere-coral-hackathon/thruthink/rag-fusion-with-cohere-and-weaviate)
 
 The main business goal is to develop a support chat agent for the investment projection web application [ThruThink®](https://thruthink.com).
 * ThruThink® is a business budgeting on-line app to create professional budgets and forecasts
