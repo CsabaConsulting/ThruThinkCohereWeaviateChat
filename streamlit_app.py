@@ -26,7 +26,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-st.markdown("[![5 minute pitch video](app/static/thruthink_logo.png)](https://youtu.be/SzJB-5rUmDg?t=227)")
+st.markdown(
+    "[![ThruThink logo](app/static/thruthink_logo.png)](https://thruthink.com)" +
+    "[![5 minute pitch video](app/static/yt_logo.png)](https://youtu.be/SzJB-5rUmDg?t=227)" +
+    "[![lablab project](app/static/link_symbol.png)](https://lablab.ai/event/cohere-coral-hackathon/thruthink/rag-fusion-with-cohere-and-weaviate)"
+)
 
 
 # Set API keys
