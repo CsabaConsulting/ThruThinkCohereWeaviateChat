@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-st.image("https://raw.githubusercontent.com/TTGithub/TTMarketingSite/master/img/logo2_smaller.png", width=300)
+st.markdown("[![5 minute pitch video](app/static/thruthink_logo.png)](https://youtu.be/SzJB-5rUmDg?t=227)")
 
 
 # Set API keys
