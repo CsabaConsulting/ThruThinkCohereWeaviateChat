@@ -14,22 +14,26 @@ from operator import itemgetter
 
 # RAG Fusion logics
 # Step 1: Generate query variations
-def generate_variations(query: str, variation_count: int, llm: Cohere) -> list[str]:
+def generate_variations(query: str, variation_count: int, llm: Cohere, example_questions: bool) -> list[str]:
     # Step 1: Generate query variations:
     variation_system_prompt = """You are a helpful assistant that generates multiple search queries based on a single input query.
 Do not include any explanations, do not repeat the queries, and do not answer the queries, simply just generate the alternative query variations."""
     variation_user_command_prompt_template = "The single input query: {query}"
-    # variation_user_example_prompt_template = "Example output:"
-    # for i in range(variation_count):
-    #     variation_user_example_prompt_template += f"{i}. Query variation {i}?\n"
+    variation_user_example_prompt_template = "Example output:"
+    if example_questions:
+        for i in range(variation_count):
+            variation_user_example_prompt_template += f"{i}. Query variation {i}?\n"
 
     variation_user_output_prompt_template = "Query variations:"
-    variation_prompt = ChatPromptTemplate.from_messages([
+    variation_prompt_array = [
         SystemMessagePromptTemplate.from_template(variation_system_prompt),
         HumanMessagePromptTemplate.from_template(variation_user_command_prompt_template),
-        # HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template),
-        HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template)
-    ])
+    ]
+    if example_questions:
+        variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template))
+
+    variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template))
+    variation_prompt = ChatPromptTemplate.from_messages(variation_prompt_array)
     variation_chain = (
         {
             "query": itemgetter("query"),
@@ -109,7 +113,7 @@ def final_rag_operations(
         if context:
             context += "\n"
 
-        context_content = rrr[0].page_content  # .replace("\n", " ")
+        context_content = rrr[0].page_content
         context += f"{index + 1}. context: `{context_content}`"
         documents.append(dict(
             id=rrr[0].metadata["slug"],
