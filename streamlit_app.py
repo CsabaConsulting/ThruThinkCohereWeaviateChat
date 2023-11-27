@@ -185,6 +185,20 @@ def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
     return tt_response, web_response
 
 
+def process_user_input(query):
+    tt_response, web_response = generate_response_with_rag_fusion(query)
+    conversation_index = len(st.session_state.past)
+    st.session_state.past.append(query)
+    generated = mark_citations("tt", conversation_index, tt_response)
+    st.session_state.generated_tt.append(generated)
+    st.session_state.tt_citations.append(tt_response.citations or [])
+    st.session_state.tt_documents.append(tt_response.documents or [])
+    generated = mark_citations("web", conversation_index, web_response)
+    st.session_state.generated_web.append(generated)
+    st.session_state.web_citations.append(web_response.citations or [])
+    st.session_state.web_documents.append(web_response.documents or [])
+
+
 clear_button = st.sidebar.button("Clear Conversation", key="clear")
 if clear_button:
     del st.session_state.generated_tt[:]
@@ -197,24 +211,37 @@ if clear_button:
     conversation_id = str(uuid.uuid4())
     st.session_state.conversation_id = conversation_id
 
+st.sidebar.write("Example prompts:")
+
+example_button1 = st.sidebar.button("What is ThruThink?")
+if example_button1:
+    process_user_input("What is ThruThink?")
+
+example_button2 = st.sidebar.button("How much Inventory should I have?")
+if example_button2:
+    process_user_input("How much Inventory should I have?")
+
+example_button3 = st.sidebar.button("Can the User make adjustments on the Cash Flow Control page?")
+if example_button3:
+    process_user_input("Can the User make adjustments on the Cash Flow Control page?")
+
+example_button4 = st.sidebar.button("In ThruThink are the tax calculations projections or exact figures?")
+if example_button4:
+    process_user_input("In ThruThink are the tax calculations projections or exact figures?")
+
+example_button5 = st.sidebar.button("In ThruThink which name can be changed to resolve the error when Existing Company is purchasing a Target Company?")
+if example_button5:
+    process_user_input("In ThruThink which name can be changed to resolve the error when Existing Company is purchasing a Target Company?")
+
 
 tt_tab, web_tab = st.tabs(["Documentation Guided Results", "Web Search Guided Results"])
 
 user_input = st.chat_input(key="user_input", placeholder="Question", max_chars=None, disabled=False)
 
 if user_input:
-    user_input = st.session_state.user_input
-    tt_response, web_response = generate_response_with_rag_fusion(user_input)
-    conversation_index = len(st.session_state.past)
-    st.session_state.past.append(user_input)
-    generated = mark_citations("tt", conversation_index, tt_response)
-    st.session_state.generated_tt.append(generated)
-    st.session_state.tt_citations.append(tt_response.citations or [])
-    st.session_state.tt_documents.append(tt_response.documents or [])
-    generated = mark_citations("web", conversation_index, web_response)
-    st.session_state.generated_web.append(generated)
-    st.session_state.web_citations.append(web_response.citations or [])
-    st.session_state.web_documents.append(web_response.documents or [])
+    query = st.session_state.user_input
+    process_user_input(query)
+    
 
 if st.session_state.generated_tt:
     with tt_tab:
