@@ -156,7 +156,7 @@ co = cohere.Client(cohere_api_key)
 def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
     # Step 1: Generate query variations
     with st.spinner("Generating variations..."):
-        query_variations = generate_variations(query, variation_count, llm)
+        query_variations = generate_variations(query, variation_count, llm, True)
         queries = extract_query_variations(query, query_variations, variation_count)
 
     # Step 2: Retrieve documents for each query variation
