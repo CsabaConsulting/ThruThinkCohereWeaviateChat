@@ -1,4 +1,6 @@
-from cohere.client import Chat, Client
+import threading
+
+from cohere.client import Chat, Client, Reranking
 from config import defaults
 from langchain.llms import Cohere
 from langchain.prompts.chat import (
@@ -10,21 +12,25 @@ from langchain.schema.document import Document
 from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
 from operator import itemgetter
+from streamlit.runtime.scriptrunner import add_script_run_ctx, ScriptRunContext
+from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 
 # RAG Fusion logics
 # Step 1: Generate query variations
 def generate_variations(query: str, variation_count: int, llm: Cohere, example_questions: bool) -> list[str]:
     # Step 1: Generate query variations:
-    variation_system_prompt = """You are a helpful assistant that generates multiple search queries based on a single input query.
-Do not include any explanations, do not repeat the queries, and do not answer the queries, simply just generate the alternative query variations."""
-    variation_user_command_prompt_template = "The single input query: {query}"
-    variation_user_example_prompt_template = "Example output:"
+    variation_system_prompt = """Your task is to generate {variation_count} different search queries that aim to answer the user question from multiple perspectives.
+The user questions are focused on ThruThink budgeting analysis and projection web application usage, or a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
+Each query MUST tackle the question from a different viewpoint, we want to get a variety of RELEVANT search results.
+Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just geenrate the queries."""
+    variation_user_command_prompt_template = "Original question: {query}"
+    variation_user_example_prompt_template = "Example output:\n"
     if example_questions:
         for i in range(variation_count):
-            variation_user_example_prompt_template += f"{i}. Query variation {i}?\n"
+            variation_user_example_prompt_template += f"{i + 1}. Query variation\n"
 
-    variation_user_output_prompt_template = "Query variations:"
+    variation_user_output_prompt_template = "OUTPUT ({variation_count} numbered queries):"
     variation_prompt_array = [
         SystemMessagePromptTemplate.from_template(variation_system_prompt),
         HumanMessagePromptTemplate.from_template(variation_user_command_prompt_template),
@@ -65,12 +71,27 @@ def extract_query_variations(query: str, query_variations: list[str], variation_
     return queries
 
 
+def retrieve_documents_for_query_variation_func(ctx: ScriptRunContext, query: str, document_sets: list, vectorstore: Weaviate, document_k: int):
+    add_script_run_ctx(ctx) # register context on thread func
+    docs = vectorstore.similarity_search_by_text(query, k=document_k)
+    document_sets.append(docs)
+
+
 # Step 2: Retrieve documents for each query variation
 def retrieve_documents_for_query_variations(queries: list[str], vectorstore: Weaviate, document_k: int) -> list[list[Document]]:
+    ctx = get_script_run_ctx() # create a context
+    thread_list = []
     document_sets = []
     for q in queries:
-        document_sets.append(vectorstore.similarity_search_by_text(q, k=document_k))
+        # pass context to thread
+        t = threading.Thread(target=retrieve_documents_for_query_variation_func, args=(ctx, q, document_sets, vectorstore, document_k))
+        t.start()
+        thread_list.append(t)
 
+    for t in thread_list:
+        t.join()
+
+    print(len(document_sets))
     return document_sets
 
 
@@ -96,23 +117,92 @@ def rerank_and_fuse_documents(document_sets: list[list[Document]], rerank_k: int
     ]
 
 
-# Step 4: Prepare and executing final RAG calls
+# Step 4: Cohere Rerank
+def cohere_reranking(
+    query: str,
+    reranked_results: list[tuple[Document, float]],
+    top_k_augment_doc: int,
+    co: Client,
+) -> Reranking:
+    documents_to_cohere_rank = []    
+    for rrr in reranked_results:
+        documents_to_cohere_rank.append(rrr[0].page_content)
+
+    return co.rerank(
+        query=query,
+        documents=documents_to_cohere_rank,
+        max_chunks_per_doc=100,
+        top_n=top_k_augment_doc,
+        model="rerank-english-v2.0"
+    )
+
+
+def document_based_query_func(
+    ctx: ScriptRunContext,
+    cohere_fusion_model: str,
+    temperature: float,
+    conversation_id: str,
+    chat_system_prompt: str,
+    documents: list[dict],
+    query: str,
+    results: list[Chat],
+    co: Client,
+):
+    add_script_run_ctx(ctx) # register context on thread func
+    results[0] = co.chat(
+        model=cohere_fusion_model,
+        prompt_truncation="auto",
+        temperature=temperature,
+        citation_quality="accurate",
+        conversation_id=conversation_id,
+        documents=documents,
+        preamble_override=chat_system_prompt,
+        message=query,
+    )
+
+
+def web_connector_query_func(
+    ctx: ScriptRunContext,
+    cohere_fusion_model: str,
+    temperature: float,
+    conversation_id: str,
+    chat_system_prompt: str,
+    rag_query: str,
+    results: list[Chat],
+    co: Client,
+):
+    add_script_run_ctx(ctx) # register context on thread func
+    results[1] = co.chat(
+        model=cohere_fusion_model,
+        prompt_truncation="auto",
+        temperature=temperature,
+        connectors=[{"id": "web-search"}],
+        citation_quality="accurate",
+        conversation_id=conversation_id,
+        preamble_override=chat_system_prompt,
+        message=rag_query,
+    )
+
+
+# Step 5: Prepare and executing final RAG calls
 # (a document based and a web connector based - also augmented)
 def final_rag_operations(
     query: str,
     reranked_results: list[tuple[Document, float]],
-    top_k_augment_doc: int,
+    reranking: Reranking,
     cohere_fusion_model: str,
     temperature: float,
     conversation_id: str,
     co: Client,
 ) -> tuple[Chat, Chat]:
+    # Step 6: Prepare prompt augmentation for RAG
     context = ""
     documents = []
-    for index, rrr in enumerate(reranked_results[:top_k_augment_doc]):
+    for index, cohere_rank in enumerate(reranking):
         if context:
             context += "\n"
 
+        rrr = reranked_results[cohere_rank.index]
         context_content = rrr[0].page_content
         context += f"{index + 1}. context: `{context_content}`"
         documents.append(dict(
@@ -122,7 +212,7 @@ def final_rag_operations(
             snippet=rrr[0].page_content,
         ))
 
-    # Step 5: Final RAG calls
+    # Step 7: Final augmented RAG calls
     chat_system_prompt = """You are an assistant specialized in ThruThink budgeting analysis and projection web application usage.
 You are also knowledgeable in a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
 While you strive to provide accurate information and assistance, please keep in mind that you are not a licensed investment advisor, financial advisor, or tax advisor.
@@ -138,26 +228,13 @@ Contexts: {context}
 Question: {query}
 Answer:
 """
-    web_response = co.chat(
-        model=cohere_fusion_model,
-        prompt_truncation="auto",
-        temperature=temperature,
-        connectors=[{"id": "web-search"}],
-        citation_quality="accurate",
-        conversation_id=conversation_id,
-        preamble_override=chat_system_prompt,
-        message=rag_query,
-    )
+    ctx = get_script_run_ctx() # create a context
+    results = [None, None]
+    document_based_query_thread = threading.Thread(target=document_based_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, documents, query, results, co))
+    web_connector_query_thread = threading.Thread(target=web_connector_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, rag_query, results, co))
 
-    tt_response = co.chat(
-        model=cohere_fusion_model,
-        prompt_truncation="auto",
-        temperature=temperature,
-        citation_quality="accurate",
-        conversation_id=conversation_id,
-        documents=documents,
-        preamble_override=chat_system_prompt,
-        message=query,
-    )
-
-    return tt_response, web_response
+    document_based_query_thread.start()
+    web_connector_query_thread.start()
+    document_based_query_thread.join()
+    web_connector_query_thread.join()
+    return results
