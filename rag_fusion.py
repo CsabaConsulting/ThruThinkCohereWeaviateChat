@@ -199,7 +199,7 @@ def final_rag_operations(
             context += "\n"
 
         rrr = reranked_results[cohere_rank.index]
-        context_content = rrr[0].page_content  # .replace("\n", " ")
+        context_content = rrr[0].page_content
         context += f"{index + 1}. context: `{context_content}`"
         documents.append(dict(
             id=rrr[0].metadata["slug"],
