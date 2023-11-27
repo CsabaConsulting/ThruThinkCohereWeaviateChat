@@ -121,11 +121,11 @@ def final_rag_operations(
     # Step 6: Prepare prompt augmentation for RAG
     context = ""
     documents = []
-    for index, corank in enumerate(cohere_ranks["results"]):
+    for index, cohere_rank in enumerate(cohere_ranks):
         if context:
             context += "\n"
 
-        rrr = reranked_results[corank["index"]]
+        rrr = reranked_results[cohere_rank.index]
         context_content = rrr[0].page_content  # .replace("\n", " ")
         context += f"{index + 1}. context: `{context_content}`"
         documents.append(dict(
