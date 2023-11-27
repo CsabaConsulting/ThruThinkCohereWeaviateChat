@@ -20,31 +20,27 @@ from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 # Step 1: Generate query variations
 def generate_variations(query: str, variation_count: int, llm: Cohere, example_questions: bool) -> list[str]:
     # Step 1: Generate query variations:
-    variation_system_prompt = """Your task is to generate {variation_count} different search queries that aim to answer the user question from multiple perspectives.
+    variation_prompt_array = [
+        SystemMessagePromptTemplate.from_template("""Your task is to generate {variation_count} different search queries that aim to answer the user question from multiple perspectives.
 The user questions are focused on ThruThink budgeting analysis and projection web application usage, or a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
 Each query MUST tackle the question from a different viewpoint, we want to get a variety of RELEVANT search results.
-Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just geenrate the queries."""
-    variation_user_command_prompt_template = "Original question: {query}"
+Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just geenrate the queries."""),
+        HumanMessagePromptTemplate.from_template("Original question: {query}"),
+    ]
     variation_user_example_prompt_template = "Example output:\n"
     if example_questions:
         for i in range(variation_count):
             variation_user_example_prompt_template += f"{i + 1}. Query variation\n"
 
-    variation_user_output_prompt_template = "OUTPUT ({variation_count} numbered queries):"
-    variation_prompt_array = [
-        SystemMessagePromptTemplate.from_template(variation_system_prompt),
-        HumanMessagePromptTemplate.from_template(variation_user_command_prompt_template),
-    ]
-    if example_questions:
         variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template))
 
-    variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template))
+    variation_prompt_array.append(HumanMessagePromptTemplate.from_template("OUTPUT ({variation_count} numbered queries):"))
     variation_prompt = ChatPromptTemplate.from_messages(variation_prompt_array)
     variation_chain = (
-        {
-            "query": itemgetter("query"),
-            "variation_count": itemgetter("variation_count")
-        }
+        dict(
+            query=itemgetter("query"),
+            variation_count=itemgetter("variation_count")
+        )
         | variation_prompt
         | llm
         | StrOutputParser()
@@ -176,7 +172,7 @@ def web_connector_query_func(
         model=cohere_fusion_model,
         prompt_truncation="auto",
         temperature=temperature,
-        connectors=[{"id": "web-search"}],
+        connectors=[dict(id="web-search")],
         citation_quality="accurate",
         conversation_id=conversation_id,
         preamble_override=chat_system_prompt,
@@ -230,11 +226,38 @@ Answer:
 """
     ctx = get_script_run_ctx() # create a context
     results = [None, None]
-    document_based_query_thread = threading.Thread(target=document_based_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, documents, query, results, co))
-    web_connector_query_thread = threading.Thread(target=web_connector_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, rag_query, results, co))
+    document_based_query_thread = threading.Thread(
+        target=document_based_query_func,
+        args=(
+            ctx,
+            cohere_fusion_model,
+            temperature,
+            conversation_id,
+            chat_system_prompt,
+            documents,
+            query,
+            results,
+            co
+        )
+    )
+    web_connector_query_thread = threading.Thread(
+        target=web_connector_query_func,
+        args=(
+            ctx,
+            cohere_fusion_model,
+            temperature,
+            conversation_id,
+            chat_system_prompt,
+            rag_query,
+            results,
+            co
+        )
+    )
 
     document_based_query_thread.start()
     web_connector_query_thread.start()
+
     document_based_query_thread.join()
     web_connector_query_thread.join()
+
     return results
