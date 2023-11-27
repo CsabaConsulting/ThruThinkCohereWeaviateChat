@@ -37,10 +37,10 @@ Each query MUST be in one line and one line only. You SHOULD NOT include any pre
     variation_prompt_array.append(HumanMessagePromptTemplate.from_template("OUTPUT ({variation_count} numbered queries):"))
     variation_prompt = ChatPromptTemplate.from_messages(variation_prompt_array)
     variation_chain = (
-        {
-            "query": itemgetter("query"),
-            "variation_count": itemgetter("variation_count")
-        }
+        dict(
+            query=itemgetter("query"),
+            variation_count=itemgetter("variation_count")
+        )
         | variation_prompt
         | llm
         | StrOutputParser()
@@ -172,7 +172,7 @@ def web_connector_query_func(
         model=cohere_fusion_model,
         prompt_truncation="auto",
         temperature=temperature,
-        connectors=[{"id": "web-search"}],
+        connectors=[dict(id="web-search")],
         citation_quality="accurate",
         conversation_id=conversation_id,
         preamble_override=chat_system_prompt,
@@ -226,11 +226,38 @@ Answer:
 """
     ctx = get_script_run_ctx() # create a context
     results = [None, None]
-    document_based_query_thread = threading.Thread(target=document_based_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, documents, query, results, co))
-    web_connector_query_thread = threading.Thread(target=web_connector_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, rag_query, results, co))
+    document_based_query_thread = threading.Thread(
+        target=document_based_query_func,
+        args=(
+            ctx,
+            cohere_fusion_model,
+            temperature,
+            conversation_id,
+            chat_system_prompt,
+            documents,
+            query,
+            results,
+            co
+        )
+    )
+    web_connector_query_thread = threading.Thread(
+        target=web_connector_query_func,
+        args=(
+            ctx,
+            cohere_fusion_model,
+            temperature,
+            conversation_id,
+            chat_system_prompt,
+            rag_query,
+            results,
+            co
+        )
+    )
 
     document_based_query_thread.start()
     web_connector_query_thread.start()
+
     document_based_query_thread.join()
     web_connector_query_thread.join()
+
     return results
