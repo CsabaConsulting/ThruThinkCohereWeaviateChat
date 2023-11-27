@@ -18,7 +18,7 @@ from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 # RAG Fusion logics
 # Step 1: Generate query variations
-def generate_variations(query: str, variation_count: int, llm: Cohere) -> list[str]:
+def generate_variations(query: str, variation_count: int, llm: Cohere, example_questions: bool) -> list[str]:
     # Step 1: Generate query variations:
     variation_system_prompt = """Your task is to generate {variation_count} different search queries that aim to answer the user question from multiple perspectives.
 The user questions are focused on ThruThink budgeting analysis and projection web application usage, or a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
@@ -26,16 +26,20 @@ Each query MUST tackle the question from a different viewpoint, we want to get a
 Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just geenrate the queries."""
     variation_user_command_prompt_template = "Original question: {query}"
     variation_user_example_prompt_template = "Example output:\n"
-    for i in range(variation_count):
-        variation_user_example_prompt_template += f"{i + 1}. Query variation\n"
+    if example_questions:
+        for i in range(variation_count):
+            variation_user_example_prompt_template += f"{i + 1}. Query variation\n"
 
     variation_user_output_prompt_template = "OUTPUT ({variation_count} numbered queries):"
-    variation_prompt = ChatPromptTemplate.from_messages([
+    variation_prompt_array = [
         SystemMessagePromptTemplate.from_template(variation_system_prompt),
         HumanMessagePromptTemplate.from_template(variation_user_command_prompt_template),
-        HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template),
-        HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template)
-    ])
+    ]
+    if example_questions:
+        variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_example_prompt_template))
+
+    variation_prompt_array.append(HumanMessagePromptTemplate.from_template(variation_user_output_prompt_template))
+    variation_prompt = ChatPromptTemplate.from_messages(variation_prompt_array)
     variation_chain = (
         {
             "query": itemgetter("query"),
