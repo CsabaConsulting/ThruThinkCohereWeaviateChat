@@ -1,4 +1,6 @@
-from cohere.client import Chat, Client
+import threading
+
+from cohere.client import Chat, Client, Reranking
 from config import defaults
 from langchain.llms import Cohere
 from langchain.prompts.chat import (
@@ -10,6 +12,8 @@ from langchain.schema.document import Document
 from langchain.schema.output_parser import StrOutputParser
 from langchain.vectorstores import Weaviate
 from operator import itemgetter
+from streamlit.runtime.scriptrunner import add_script_run_ctx, ScriptRunContext
+from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 
 # RAG Fusion logics
@@ -63,12 +67,27 @@ def extract_query_variations(query: str, query_variations: list[str], variation_
     return queries
 
 
+def retrieve_documents_for_query_variation_func(ctx: ScriptRunContext, query: str, document_sets: list, vectorstore: Weaviate, document_k: int):
+    add_script_run_ctx(ctx) # register context on thread func
+    docs = vectorstore.similarity_search_by_text(query, k=document_k)
+    document_sets.append(docs)
+
+
 # Step 2: Retrieve documents for each query variation
 def retrieve_documents_for_query_variations(queries: list[str], vectorstore: Weaviate, document_k: int) -> list[list[Document]]:
+    ctx = get_script_run_ctx() # create a context
+    thread_list = []
     document_sets = []
     for q in queries:
-        document_sets.append(vectorstore.similarity_search_by_text(q, k=document_k))
+        # pass context to thread
+        t = threading.Thread(target=retrieve_documents_for_query_variation_func, args=(ctx, q, document_sets, vectorstore, document_k))
+        t.start()
+        thread_list.append(t)
 
+    for t in thread_list:
+        t.join()
+
+    print(len(document_sets))
     return document_sets
 
 
@@ -94,23 +113,18 @@ def rerank_and_fuse_documents(document_sets: list[list[Document]], rerank_k: int
     ]
 
 
-# Step 4: Prepare and executing final RAG calls
-# (a document based and a web connector based - also augmented)
-def final_rag_operations(
+# Step 4: Cohere Rerank
+def cohere_reranking(
     query: str,
     reranked_results: list[tuple[Document, float]],
     top_k_augment_doc: int,
-    cohere_fusion_model: str,
-    temperature: float,
-    conversation_id: str,
     co: Client,
-) -> tuple[Chat, Chat]:
-    # Step 5: Cohere rerank
+) -> Reranking:
     documents_to_cohere_rank = []    
     for rrr in reranked_results:
         documents_to_cohere_rank.append(rrr[0].page_content)
 
-    cohere_ranks = co.rerank(
+    return co.rerank(
         query=query,
         documents=documents_to_cohere_rank,
         max_chunks_per_doc=100,
@@ -118,10 +132,69 @@ def final_rag_operations(
         model="rerank-english-v2.0"
     )
 
+
+def document_based_query_func(
+    ctx: ScriptRunContext,
+    cohere_fusion_model: str,
+    temperature: float,
+    conversation_id: str,
+    chat_system_prompt: str,
+    documents: list[dict],
+    query: str,
+    results: list[Chat],
+    co: Client,
+):
+    add_script_run_ctx(ctx) # register context on thread func
+    results[0] = co.chat(
+        model=cohere_fusion_model,
+        prompt_truncation="auto",
+        temperature=temperature,
+        citation_quality="accurate",
+        conversation_id=conversation_id,
+        documents=documents,
+        preamble_override=chat_system_prompt,
+        message=query,
+    )
+
+
+def web_connector_query_func(
+    ctx: ScriptRunContext,
+    cohere_fusion_model: str,
+    temperature: float,
+    conversation_id: str,
+    chat_system_prompt: str,
+    rag_query: str,
+    results: list[Chat],
+    co: Client,
+):
+    add_script_run_ctx(ctx) # register context on thread func
+    results[1] = co.chat(
+        model=cohere_fusion_model,
+        prompt_truncation="auto",
+        temperature=temperature,
+        connectors=[{"id": "web-search"}],
+        citation_quality="accurate",
+        conversation_id=conversation_id,
+        preamble_override=chat_system_prompt,
+        message=rag_query,
+    )
+
+
+# Step 5: Prepare and executing final RAG calls
+# (a document based and a web connector based - also augmented)
+def final_rag_operations(
+    query: str,
+    reranked_results: list[tuple[Document, float]],
+    reranking: Reranking,
+    cohere_fusion_model: str,
+    temperature: float,
+    conversation_id: str,
+    co: Client,
+) -> tuple[Chat, Chat]:
     # Step 6: Prepare prompt augmentation for RAG
     context = ""
     documents = []
-    for index, cohere_rank in enumerate(cohere_ranks):
+    for index, cohere_rank in enumerate(reranking):
         if context:
             context += "\n"
 
@@ -151,26 +224,13 @@ Contexts: {context}
 Question: {query}
 Answer:
 """
-    web_response = co.chat(
-        model=cohere_fusion_model,
-        prompt_truncation="auto",
-        temperature=temperature,
-        connectors=[{"id": "web-search"}],
-        citation_quality="accurate",
-        conversation_id=conversation_id,
-        preamble_override=chat_system_prompt,
-        message=rag_query,
-    )
+    ctx = get_script_run_ctx() # create a context
+    results = [None, None]
+    document_based_query_thread = threading.Thread(target=document_based_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, documents, query, results, co))
+    web_connector_query_thread = threading.Thread(target=web_connector_query_func, args=(ctx, cohere_fusion_model, temperature, conversation_id, chat_system_prompt, rag_query, results, co))
 
-    tt_response = co.chat(
-        model=cohere_fusion_model,
-        prompt_truncation="auto",
-        temperature=temperature,
-        citation_quality="accurate",
-        conversation_id=conversation_id,
-        documents=documents,
-        preamble_override=chat_system_prompt,
-        message=query,
-    )
-
-    return tt_response, web_response
+    document_based_query_thread.start()
+    web_connector_query_thread.start()
+    document_based_query_thread.join()
+    web_connector_query_thread.join()
+    return results

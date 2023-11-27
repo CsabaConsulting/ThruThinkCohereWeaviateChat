@@ -11,6 +11,7 @@ from langchain.embeddings import CohereEmbeddings
 from langchain.llms import Cohere
 from langchain.vectorstores import Weaviate
 from rag_fusion import (
+  cohere_reranking,
   extract_query_variations,
   final_rag_operations,
   generate_variations,
@@ -165,12 +166,16 @@ def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
         # Step 3: Rerank the document sets with reciprocal rank fusion
         reranked_results = rerank_and_fuse_documents(document_sets, rerank_k)
 
-    # Step 4: Prepare and executing final RAG calls (a grounded and a web)
-    with st.spinner("Executing twin queries..."):
+    # Step 4: Cohere Rerank
+    with st.spinner("Cohere reranking..."):
+        reranking = cohere_reranking(query, reranked_results, top_k_augment_doc, co)
+
+    # Step 5: Prepare and executing final RAG calls (a grounded and a web)
+    with st.spinner("Executing RAG queries..."):
         tt_response, web_response = final_rag_operations(
             query,
             reranked_results,
-            top_k_augment_doc,
+            reranking,
             cohere_fusion_model,
             temperature,
             conversation_id,
