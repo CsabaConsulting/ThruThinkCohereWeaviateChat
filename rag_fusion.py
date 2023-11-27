@@ -105,12 +105,27 @@ def final_rag_operations(
     conversation_id: str,
     co: Client,
 ) -> tuple[Chat, Chat]:
+    # Step 5: Cohere rerank
+    documents_to_cohere_rank = []    
+    for rrr in reranked_results:
+        documents_to_cohere_rank.append(rrr[0].page_content)
+
+    cohere_ranks = co.rerank(
+        query=query,
+        documents=documents_to_cohere_rank,
+        max_chunks_per_doc=100,
+        top_n=top_k_augment_doc,
+        model="rerank-english-v2.0"
+    )
+
+    # Step 6: Prepare prompt augmentation for RAG
     context = ""
     documents = []
-    for index, rrr in enumerate(reranked_results[:top_k_augment_doc]):
+    for index, corank in enumerate(cohere_ranks["results"]):
         if context:
             context += "\n"
 
+        rrr = reranked_results[corank["index"]]
         context_content = rrr[0].page_content  # .replace("\n", " ")
         context += f"{index + 1}. context: `{context_content}`"
         documents.append(dict(
@@ -120,7 +135,7 @@ def final_rag_operations(
             snippet=rrr[0].page_content,
         ))
 
-    # Step 5: Final RAG calls
+    # Step 7: Final augmented RAG calls
     chat_system_prompt = """You are an assistant specialized in ThruThink budgeting analysis and projection web application usage.
 You are also knowledgeable in a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
 While you strive to provide accurate information and assistance, please keep in mind that you are not a licensed investment advisor, financial advisor, or tax advisor.
