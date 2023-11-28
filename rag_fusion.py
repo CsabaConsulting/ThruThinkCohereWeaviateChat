@@ -134,7 +134,6 @@ def retrieve_documents_for_query_variations(queries: list[str], vectorstore: Wea
     for t in thread_list:
         t.join()
 
-    print(len(document_sets))
     return document_sets
 
 
