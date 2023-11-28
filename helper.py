@@ -19,4 +19,4 @@ def mark_citations(kind: str, index: int, response: Chat) -> str:
         txt = insert_substring(txt, f"<sup>{cit_sup}</sup></a>", cit["end"])
         txt = insert_substring(txt, f"<a href='{doc_anchor}' target='_self'>", cit["start"])
 
-    return txt  # .replace("\n\n", "\n").replace("\n\n", "\n").replace("\n\n", "\n")
+    return txt
