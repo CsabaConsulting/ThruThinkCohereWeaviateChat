@@ -13,6 +13,9 @@ def mark_citations(kind: str, index: int, response: Chat) -> str:
 
     txt = response.text or "N/A"
     for cit in (response.citations or [])[::-1]:
+        if not cit["document_ids"]:
+            continue
+
         doc_anchor = doc_map[cit["document_ids"][0]]
         cit_idxs = doc_anchor.split("_")
         cit_sup = f"{cit_idxs[-2]}.{cit_idxs[-1]}"
