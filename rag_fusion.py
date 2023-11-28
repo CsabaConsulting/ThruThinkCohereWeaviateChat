@@ -17,6 +17,53 @@ from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 
 
 # RAG Fusion logics
+# Step 0: Resolve any context references if applicable
+def resolve_conversational_references(query: str, questions: list[str], answers: list[str], llm: Cohere) -> str:
+    # No history yet
+    if not questions:
+        return query
+
+    reference_resolution_example_prompt = """Example conversation history:
+Query: What is ThruThink?
+Response: ThruThink is a software tool for businesses to project their performance and evaluate their debt and equity structure.
+---
+Example follow up question: And who operates or owns it?
+---
+The resolved example follow up query: And who operates or owns ThruThink?
+"""
+
+    reference_resolution_human_prompt = "The actual conversation history:\n"
+    for question, answer in zip(questions, answers):
+        reference_resolution_human_prompt += f"Query: {question}\n"
+        reference_resolution_human_prompt += f"Response: {answer}\n"
+
+    reference_resolution_human_prompt += "---\n"
+    reference_resolution_human_prompt += "The actual follow up query: {query}\n"
+    reference_resolution_human_prompt += "---\n"
+    reference_resolution_human_prompt += "The resolved actual follow up query:"
+    reference_resolution_prompt_array = [
+        SystemMessagePromptTemplate.from_template("""Your task is to take a conversation plus a follow up query, and reoslve any conversational references in the follow up query.
+Every conversational reference should be substituted so if someone is presented with the resolved query it can stand alone without the chat history.
+You MUST leave the non conversational references and any non reference parts of the query intact.
+You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer any questions or add anything else, just resolve the conversational references.
+The substitution MUST be as terse and compact as possible.
+The resolved query MUST be plain text and CANNOT contain any HTML or other markup."""),
+        HumanMessagePromptTemplate.from_template(reference_resolution_example_prompt),
+        HumanMessagePromptTemplate.from_template(reference_resolution_human_prompt),
+    ]
+    reference_resolution_prompt = ChatPromptTemplate.from_messages(reference_resolution_prompt_array)
+    print(reference_resolution_prompt)
+    reference_resolution_chain = (
+        dict(query=itemgetter("query"))
+        | reference_resolution_prompt
+        | llm
+        | StrOutputParser()
+    )
+    resolved_query = reference_resolution_chain.invoke(dict(query=query))
+    print(resolved_query)
+    return resolved_query
+
+
 # Step 1: Generate query variations
 def generate_variations(query: str, variation_count: int, llm: Cohere, example_questions: bool) -> list[str]:
     # Step 1: Generate query variations:
@@ -24,7 +71,7 @@ def generate_variations(query: str, variation_count: int, llm: Cohere, example_q
         SystemMessagePromptTemplate.from_template("""Your task is to generate {variation_count} different search queries that aim to answer the user question from multiple perspectives.
 The user questions are focused on ThruThink budgeting analysis and projection web application usage, or a wide range of budgeting and accounting topics, including EBITDA, cash flow balance, inventory management, and more.
 Each query MUST tackle the question from a different viewpoint, we want to get a variety of RELEVANT search results.
-Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just geenrate the queries."""),
+Each query MUST be in one line and one line only. You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer the questions or add anything else, just generate the queries."""),
         HumanMessagePromptTemplate.from_template("Original question: {query}"),
     ]
     variation_user_example_prompt_template = "Example output:\n"

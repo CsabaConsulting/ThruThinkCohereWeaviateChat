@@ -16,6 +16,7 @@ from rag_fusion import (
   final_rag_operations,
   generate_variations,
   rerank_and_fuse_documents,
+  resolve_conversational_references,
   retrieve_documents_for_query_variations,
 )
 from streamlit_chat import message
@@ -154,6 +155,10 @@ co = cohere.Client(cohere_api_key)
 
 
 def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
+    # Step 0: Resolve query if needed
+    with st.spinner("Resolve query..."):
+        query = resolve_conversational_references(query, st.session_state.past, st.session_state.generated_tt, llm)
+
     # Step 1: Generate query variations
     with st.spinner("Generating variations..."):
         query_variations = generate_variations(query, variation_count, llm, True)
