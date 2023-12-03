@@ -167,7 +167,7 @@ def cohere_reranking(
     top_k_augment_doc: int,
     co: Client,
 ) -> Reranking:
-    documents_to_cohere_rank = []    
+    documents_to_cohere_rank = []
     for rrr in reranked_results:
         documents_to_cohere_rank.append(rrr[0].page_content)
 
