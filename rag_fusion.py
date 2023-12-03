@@ -42,7 +42,7 @@ The resolved example follow up query: And who operates or owns ThruThink?
     reference_resolution_human_prompt += "---\n"
     reference_resolution_human_prompt += "The resolved actual follow up query:"
     reference_resolution_prompt_array = [
-        SystemMessagePromptTemplate.from_template("""Your task is to take a conversation plus a follow up query, and reoslve any conversational references in the follow up query.
+        SystemMessagePromptTemplate.from_template("""Your task is to take a conversation plus a follow up query, and resolve any conversational references in the follow up query.
 Every conversational reference should be substituted so if someone is presented with the resolved query it can stand alone without the chat history.
 You MUST leave the non conversational references and any non reference parts of the query intact.
 You SHOULD NOT include any preamble or explanations, and you SHOULD NOT answer any questions or add anything else, just resolve the conversational references.
