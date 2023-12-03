@@ -86,6 +86,9 @@ if "conversation_id" not in st.session_state:
 if "generated_tt" not in st.session_state:
     st.session_state["generated_tt"] = []
 
+if "generated_annotated_tt" not in st.session_state:
+    st.session_state["generated_annotated_tt"] = []
+
 if "tt_citations" not in st.session_state:
     st.session_state["tt_citations"] = []
 
@@ -94,6 +97,9 @@ if "tt_documents" not in st.session_state:
 
 if "generated_web" not in st.session_state:
     st.session_state["generated_web"] = []
+
+if "generated_annotated_web" not in st.session_state:
+    st.session_state["generated_annotated_web"] = []
 
 if "web_citations" not in st.session_state:
     st.session_state["web_citations"] = []
@@ -191,15 +197,17 @@ def generate_response_with_rag_fusion(query: str) -> tuple[Chat, Chat]:
 
 
 def process_user_input(query):
-    tt_response, web_response = generate_response_with_rag_fusion(query)
-    conversation_index = len(st.session_state.past)
     st.session_state.past.append(query)
+    tt_response, web_response = generate_response_with_rag_fusion(query)
+    st.session_state.generated_tt.append(tt_response)
+    st.session_state.generated_web.append(web_response)
+    conversation_index = len(st.session_state.past)
     generated = mark_citations("tt", conversation_index, tt_response)
-    st.session_state.generated_tt.append(generated)
+    st.session_state.generated_annotated_tt.append(generated)
     st.session_state.tt_citations.append(tt_response.citations or [])
     st.session_state.tt_documents.append(tt_response.documents or [])
     generated = mark_citations("web", conversation_index, web_response)
-    st.session_state.generated_web.append(generated)
+    st.session_state.generated_annotated_web.append(generated)
     st.session_state.web_citations.append(web_response.citations or [])
     st.session_state.web_documents.append(web_response.documents or [])
 
@@ -207,9 +215,11 @@ def process_user_input(query):
 clear_button = st.sidebar.button("Clear Conversation", key="clear")
 if clear_button:
     del st.session_state.generated_tt[:]
+    del st.session_state.generated_annotated_tt[:]
     del st.session_state.tt_citations[:]
     del st.session_state.tt_documents[:]
     del st.session_state.generated_web[:]
+    del st.session_state.generated_annotated_web[:]
     del st.session_state.web_citations[:]
     del st.session_state.web_documents[:]
     del st.session_state.past[:]
@@ -248,34 +258,34 @@ if user_input:
     process_user_input(query)
     
 
-if st.session_state.generated_tt:
+if st.session_state.generated_annotated_tt:
     with tt_tab:
         tt_chat, tt_refs = st.columns(2)
 
         with tt_chat:
-            for i in range(len(st.session_state.generated_tt)):
+            for i in range(len(st.session_state.generated_annotated_tt)):
                 message(st.session_state.past[i], is_user=True, allow_html=True, key=str(uuid.uuid1()))
-                message(st.session_state.generated_tt[i], allow_html=True, key=str(uuid.uuid1()))
+                message(st.session_state.generated_annotated_tt[i], allow_html=True, key=str(uuid.uuid1()))
 
         with tt_refs:
-            for i in range(len(st.session_state.generated_tt)):
+            for i in range(len(st.session_state.generated_annotated_tt)):
                 for j in range(len(st.session_state.tt_documents[i])):
                     doc = st.session_state.tt_documents[i][j]
                     ref_anchor = f"<a id='tt_ref_{i + 1}_{j + 1}'>Reference {i + 1}.{j + 1}</a>"
                     snippet = doc['snippet'].replace("\n\n", "\n").replace("\n\n", "\n").replace("\n\n", "\n")
                     message(f"{ref_anchor}:\n{snippet}", is_user=True, allow_html=True, avatar_style="shapes", key=str(uuid.uuid1()))
 
-if st.session_state.generated_web:
+if st.session_state.generated_annotated_web:
     with web_tab:
         web_chat, web_refs = st.columns(2)
 
         with web_chat:
-            for i in range(len(st.session_state.generated_web)):
+            for i in range(len(st.session_state.generated_annotated_web)):
                 message(st.session_state.past[i], is_user=True, allow_html=True, key=str(uuid.uuid1()))
-                message(st.session_state.generated_web[i], allow_html=True, key=str(uuid.uuid1()))
+                message(st.session_state.generated_annotated_web[i], allow_html=True, key=str(uuid.uuid1()))
 
         with web_refs:
-            for i in range(len(st.session_state.generated_web)):
+            for i in range(len(st.session_state.generated_annotated_web)):
                 for j in range(len(st.session_state.web_documents[i])):
                     doc = st.session_state.web_documents[i][j]
                     ref_anchor = f"<a id='web_ref_{i + 1}_{j + 1}'>Reference {i + 1}.{j + 1}</a>"
