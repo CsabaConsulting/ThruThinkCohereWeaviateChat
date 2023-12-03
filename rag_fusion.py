@@ -21,6 +21,7 @@ from streamlit.runtime.scriptrunner.script_run_context import get_script_run_ctx
 def resolve_conversational_references(query: str, questions: list[str], answers: list[str], llm: Cohere) -> str:
     # No history yet
     if not questions:
+        print("first")
         return query
 
     reference_resolution_example_prompt = """Example conversation history:
