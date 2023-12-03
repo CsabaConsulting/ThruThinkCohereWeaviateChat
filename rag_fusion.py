@@ -261,7 +261,7 @@ You are also knowledgeable in a wide range of budgeting and accounting topics, i
 While you strive to provide accurate information and assistance, please keep in mind that you are not a licensed investment advisor, financial advisor, or tax advisor.
 Therefore, you cannot provide personalized investment advice, financial planning, or tax guidance.
 You are here to assist with ThruThink-related inquiries, or offer general information, answer questions to the best of your knowledge.
-When provided, factor in any pieces of retrieved context to answer the question. Also factor in any
+When provided, factor in any pieces of retrieved context to answer the question.
 If you don't know the answer, just say that "I don't know", don't try to make up an answer."""
 
     rag_query = f"""Use the following pieces of retrieved context to answer the question.
